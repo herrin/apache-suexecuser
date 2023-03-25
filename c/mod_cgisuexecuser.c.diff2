@@ -1,0 +1,151 @@
+--- orig/mod_cgi.c	2016-06-01 10:42:54.000000000 -0700
++++ mod_cgisuexecuser.c	2023-03-25 09:42:50.635362888 -0700
+@@ -27,6 +27,9 @@
+  * they fail.
+  */
+ 
++/* #define DEBUG_CGI */
++
++
+ #include "apr.h"
+ #include "apr_strings.h"
+ #include "apr_thread_proc.h"    /* for RLIMIT stuff */
+@@ -59,7 +62,11 @@
+ #endif
+ #endif
+ 
+-module AP_MODULE_DECLARE_DATA cgi_module;
++#include <sys/types.h> /* struct passwd */
++#include <pwd.h> /* struct passwd */
++
++
++module AP_MODULE_DECLARE_DATA cgisuexecuser_module;
+ 
+ static APR_OPTIONAL_FN_TYPE(ap_register_include_handler) *cgi_pfn_reg_with_ssi;
+ static APR_OPTIONAL_FN_TYPE(ap_ssi_get_tag_and_value) *cgi_pfn_gtv;
+@@ -116,7 +123,7 @@
+ {
+     server_rec *s = cmd->server;
+     cgi_server_conf *conf = ap_get_module_config(s->module_config,
+-                                                 &cgi_module);
++                                                 &cgisuexecuser_module);
+ 
+     conf->logname = ap_server_root_relative(cmd->pool, arg);
+ 
+@@ -133,7 +140,7 @@
+ {
+     server_rec *s = cmd->server;
+     cgi_server_conf *conf = ap_get_module_config(s->module_config,
+-                                                 &cgi_module);
++                                                 &cgisuexecuser_module);
+ 
+     conf->logbytes = atol(arg);
+     return NULL;
+@@ -144,7 +151,7 @@
+ {
+     server_rec *s = cmd->server;
+     cgi_server_conf *conf = ap_get_module_config(s->module_config,
+-                                                 &cgi_module);
++                                                 &cgisuexecuser_module);
+ 
+     conf->bufbytes = atoi(arg);
+     return NULL;
+@@ -187,7 +194,7 @@
+     apr_ctime(time_str, apr_time_now());
+     apr_file_printf(f, "%%%% [%s] %s %s%s%s %s\n", time_str, r->method, r->uri,
+                     r->args ? "?" : "", r->args ? r->args : "", r->protocol);
+-    /* "%% 500 /usr/local/apache/cgi-bin */
++    /* "%% 500 /usr/local/apache2/cgi-bin */
+     apr_file_printf(f, "%%%% %d %s\n", ret, r->filename);
+ 
+     apr_file_printf(f, "%%error\n%s\n", error);
+@@ -252,7 +259,7 @@
+     apr_ctime(time_str, apr_time_now());
+     apr_file_printf(f, "%%%% [%s] %s %s%s%s %s\n", time_str, r->method, r->uri,
+                     r->args ? "?" : "", r->args ? r->args : "", r->protocol);
+-    /* "%% 500 /usr/local/apache/cgi-bin" */
++    /* "%% 500 /usr/local/apache2/cgi-bin" */
+     apr_file_printf(f, "%%%% %d %s\n", ret, r->filename);
+ 
+     apr_file_puts("%request\n", f);
+@@ -405,6 +412,9 @@
+ #ifdef DEBUG_CGI
+     fprintf(dbg, "Attempting to exec %s as CGI child (argv0 = %s)\n",
+             r->filename, argv[0]);
++    fprintf(dbg, "r->args=%s\n",r->args);
++    fprintf(dbg, "r->filename=%s\n",r->filename);
++    fflush (dbg);
+ #endif
+ 
+     env = (const char * const *)ap_create_environment(p, r->subprocess_env);
+@@ -452,11 +462,49 @@
+                       "couldn't set child process attributes: %s", r->filename);
+     }
+     else {
++        int bad=0;
++        struct stat file_info;
++        struct passwd pwd, *pw;
++        char buf[1000], cmdbuf[1000];
++        char *username="cgiuser";
++
+         procnew = apr_pcalloc(p, sizeof(*procnew));
+-        rc = ap_os_create_privileged_process(r, procnew, command, argv, env,
+-                                             procattr, p);
+ 
+-        if (rc != APR_SUCCESS) {
++        /* Start of BILL suexecuser code in run_cgi_child() */
++        /* who owns the CGI program? Find the UID number */
++        if (lstat(command,&file_info)) {
++          ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, rc, r,
++             "cgi suexecuser lstat of %s failed", command);
++          bad=APR_ENOSTAT;
++        }
++        /* who owns the CGI program? Find the name from the UID number */
++        if ((!bad)&&getpwuid_r (file_info.st_uid,&pwd,buf,1000,&pw)) {
++          ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, rc, r,
++             "cgi suexecuser getpwuid1 of %s failed", command);
++          bad=APR_EGENERAL;
++        } 
++        if ((!bad)&&((!pw)||(!pw->pw_name)||(!pw->pw_name[0]))) {
++          ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, rc, r,
++             "cgi suexecuser getpwuid2 of %s failed", command);
++          bad=APR_EGENERAL;
++        } else if (file_info.st_uid>=500) username=pw->pw_name;
++        if (!bad) {
++          /* change command to the suexec wrapper for the real CGI program's
++           * owner */
++          snprintf (cmdbuf,999,"/usr/lib/apache2/suexecdir/%s",username);
++          command = (const char *) cmdbuf;
++#ifdef DEBUG_CGI
++          fprintf(dbg, "Revised exec %s as %sCGI child (argv0 = %s)\n",
++            r->filename, cld->nph ? "NPH " : "", argv0);
++          fprintf(dbg, "r->args=%s\n",r->args);
++          fflush (dbg);
++#endif
++          rc = ap_os_create_privileged_process(r, procnew,
++                command, argv, env, procattr, p);
++        } else rc=bad;
++        /* End of BILL suexecuser code */
++
++        if (bad||(rc != APR_SUCCESS)) {
+             /* Bad things happened. Everyone should have cleaned up. */
+             ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, rc, r,
+                           "couldn't create child process: %d: %s", rc,
+@@ -771,7 +819,7 @@
+ 
+     argv0 = apr_filepath_name_get(r->filename);
+     nph = !(strncmp(argv0, "nph-", 4));
+-    conf = ap_get_module_config(r->server->module_config, &cgi_module);
++    conf = ap_get_module_config(r->server->module_config, &cgisuexecuser_module);
+ 
+     if (!(ap_allow_options(r) & OPT_EXECCGI) && !is_scriptaliased(r))
+         return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
+@@ -1273,7 +1321,7 @@
+     ap_hook_post_config(cgi_post_config, aszPre, NULL, APR_HOOK_REALLY_FIRST);
+ }
+ 
+-AP_DECLARE_MODULE(cgi) =
++AP_DECLARE_MODULE(cgisuexecuser) =
+ {
+     STANDARD20_MODULE_STUFF,
+     NULL,                        /* dir config creater */

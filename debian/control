@@ -1,0 +1,16 @@
+Source: apache-suexecuser
+Section: httpd
+Priority: optional
+Maintainer: Bill Herrin <herrin@dirtside.com>
+Build-Depends: debhelper (>= 7.0.50~), libapr1-dev, libaprutil1-dev, apache2-dev (>=2.4)
+# Standards-Version: 3.8.4
+Standards-Version: 3.6.1
+
+Package: apache-suexecuser
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, apache2 (>= 2.4)
+Description: Per-user suexec for Apache
+  Create a suexec binary for each user who can run CGI programs
+  Never su to root. Call the user-specific binary instead.
+  The user controls what files can run via a config in his home directory.
+

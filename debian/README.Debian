@@ -1,0 +1,7 @@
+apache-suexecuser for Debian
+-----------------
+
+build with dpkg-buildpackage
+<possible notes regarding this package - if none, delete this file>
+
+ -- William Herrin <herrin@dirtside.com>  Mon, 07 Jan 2013 11:15:38 -0500
