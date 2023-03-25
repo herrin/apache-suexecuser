@@ -1,8 +1,8 @@
-apache-suexecuser (1.2) UNRELEASED; urgency=medium
+apache-suexecuser (2.4.56) unstable; urgency=medium
 
   * updated to apache 2.4.56 
 
- -- William Herrin <herrin@dirtside.com>  Sat, 25 Mar 2023 10:14:44 -0700
+ -- William Herrin <herrin@dirtside.com>  Sat, 25 Mar 2023 10:26:47 -0700
 
 apache-suexecuser (1.1+2) unstable; urgency=medium
 
