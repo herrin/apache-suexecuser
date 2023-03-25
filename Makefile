@@ -15,7 +15,7 @@ RM= /bin/rm -f
 	$(CC) -c $(CFLAGS) $<
 
 all: 
-	dpkg-buildpackage -b
+	dpkg-buildpackage -b --no-sign
 
 install: all
 
