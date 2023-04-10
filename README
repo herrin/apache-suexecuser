@@ -1,1 +1,13 @@
-debian/README
+apache-suexecuser for Debian
+-----------------
+
+build with dpkg-buildpackage
+<possible notes regarding this package - if none, delete this file>
+
+cd c
+cp generators/mod_cgi.h generators/mod_cgi.c .
+mv mod_cgisuexecuser.c mod_cgisuexecuser.c.oldversion
+cp mod_cgi.c mod_cgisuexecuser.c
+patch -p0 < mod_cgisuexecuser.c.diff
+
+ -- William Herrin <herrin@dirtside.com>  Mon, 07 Jan 2013 11:15:38 -0500
