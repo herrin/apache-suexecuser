@@ -1,3 +1,11 @@
+Uses setuid helpers which set the user directly to the user the CGI program
+will run as instead of switching to root and then back to the target
+user. The sysadmin can control which users can run CGI scripts by 
+controlling the installed helper binaries.
+
+Also reads a pair of text files to determine exactly what CGI scripts are
+allowed to run for each user. 
+
 apache-suexecuser for Debian
 -----------------
 
