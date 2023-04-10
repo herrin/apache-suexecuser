@@ -6,6 +6,30 @@ controlling the installed helper binaries.
 Also reads a pair of text files to determine exactly what CGI scripts are
 allowed to run for each user. 
 
+In the apache config dir, create "apache-suid" with:
+run:/home/*
+run:/var/www/*
+
+CGI programs located in other parts of the filesystem will be blocked.
+
+In the user's $HOME directory, create ".apache-suid" with:
+run:/home/user/www/*
+
+Both files must exist and the CGI program to be run must match a "run:"
+entry in BOTH files or the script will not be run.
+
+The module will run the setuid helper at:
+/usr/lib/apache2/suexecdir/user 
+where "user" is the login name of the user to run as. For example, for
+my login name "herrin":
+
+cp suexec-user /usr/lib/apache2/suexecdir/herrin
+chown herrin: /usr/lib/apache2/suexecdir/herrin
+chmod 6511 /usr/lib/apache2/suexecdir/herrin
+
+
+
+
 apache-suexecuser for Debian
 -----------------
 
